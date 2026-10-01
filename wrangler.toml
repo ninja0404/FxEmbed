@@ -1,0 +1,14 @@
+name = "fxembed-selfhost"
+account_id = "7625227d7c0a95d267705ee2bf29afea"
+main = "./dist/worker.js"
+compatibility_date = "2026-04-11"
+send_metrics = false
+workers_dev = true
+no_bundle = true
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[build]
+command = "npm run build"
