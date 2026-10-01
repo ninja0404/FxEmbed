@@ -2,7 +2,10 @@ import type { TwitterCredentials } from '@fxembed/atmosphere/types/proxy-credent
 import { SearchTimelineQuery } from '@fxembed/atmosphere/providers/twitter/graphql/queries';
 import { buildGraphQLUrl } from '@fxembed/atmosphere/providers/twitter/graphql/request';
 import { proxyTwitterRequest } from '@fxembed/atmosphere/providers/twitter/proxy/handler';
-import { classifyAPIErrors } from '@fxembed/atmosphere/providers/twitter/proxy/errors';
+import {
+  classifyAPIErrors,
+  twitterResponseLooksEmpty
+} from '@fxembed/atmosphere/providers/twitter/proxy/errors';
 import { Constants } from '../../constants';
 
 export type AccountStatus =
@@ -14,6 +17,7 @@ export type AccountHealth = {
   checkedAt: string | null;
   stage: 'session' | 'query';
   httpStatus?: number;
+  errorType?: string;
   latencyMs?: number;
   rateLimitReset?: string;
 };
@@ -49,7 +53,12 @@ export function classifyAccountResponse(
     return { status: 'invalid', reason: 'authentication_failed' };
   }
   if (httpStatus !== 200 || errors.length > 0) return { status: 'error', reason: 'upstream_error' };
-  return { status: 'error', reason: 'unexpected_upstream_response' };
+  return {
+    status: 'error',
+    reason: twitterResponseLooksEmpty(body)
+      ? 'empty_upstream_response'
+      : 'unexpected_upstream_response'
+  };
 }
 
 /** Pin the session so another account cannot hide this account's authentication failure. */
@@ -59,6 +68,7 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
     return { status: 'invalid', reason: 'missing_session_credentials', stage: 'query', checkedAt };
   }
   const started = performance.now();
+  let httpStatus: number | undefined;
   try {
     const url = buildGraphQLUrl(SearchTimelineQuery, {
       rawQuery: 'from:jack',
@@ -79,9 +89,29 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
       {},
       account
     );
-    const body: unknown = await response.json();
+    httpStatus = response.status;
+    const text = await response.text();
+    let body: unknown;
+    try {
+      body = text.trim() ? JSON.parse(text) : {};
+    } catch {
+      const classification = classifyAccountResponse(httpStatus, {});
+      return {
+        status: classification.status,
+        reason: classification.status === 'error' ? 'upstream_non_json' : classification.reason,
+        checkedAt,
+        stage: 'query',
+        httpStatus,
+        latencyMs: Math.round(performance.now() - started)
+      };
+    }
+    const classification = classifyAccountResponse(response.status, body);
     const health: AccountHealth = {
-      ...classifyAccountResponse(response.status, body),
+      ...classification,
+      reason:
+        !text.trim() && classification.status === 'error'
+          ? 'empty_upstream_response'
+          : classification.reason,
       stage: 'query',
       checkedAt,
       httpStatus: response.status,
@@ -99,6 +129,8 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
         error instanceof Error && /Timeout|Abort/.test(error.name) ? 'timeout' : 'probe_failed',
       stage: 'query',
       checkedAt,
+      httpStatus,
+      errorType: error instanceof Error ? error.name : 'Error',
       latencyMs: Math.round(performance.now() - started)
     };
   }

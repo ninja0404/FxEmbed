@@ -24,7 +24,7 @@ export function dashboardPage(nonce: string): string {
 const dashboardScript = `
 const $ = id => document.getElementById(id);
 const labels = {available:'查询可用',session_valid:'待查询检测',unknown:'未检测',invalid:'登录态失效',restricted:'账号受限',rate_limited:'限流中',error:'检测异常'};
-const reasons = {query_verified:'查询验证通过',identity_and_ct0_verified:'身份与登录态已核对',authentication_failed:'登录态已失效',account_suspended:'账号已被停用',account_verification_required:'需要在 X 完成账号验证',rate_limit:'请求频率已达上限',missing_session_credentials:'登录凭证不完整',upstream_error:'X 返回查询错误',unexpected_upstream_response:'X 返回了非预期数据',timeout:'检测超时',probe_failed:'查询请求失败',not_checked:'尚未检测',identity_mismatch:'Token 与用户名不一致',no_authenticated_identity:'未识别到登录身份'};
+const reasons = {query_verified:'查询验证通过',identity_and_ct0_verified:'身份与登录态已核对',authentication_failed:'登录态已失效',account_suspended:'账号已被停用',account_verification_required:'需要在 X 完成账号验证',rate_limit:'请求频率已达上限',missing_session_credentials:'登录凭证不完整',upstream_error:'X 返回查询错误',empty_upstream_response:'X 返回空响应',upstream_non_json:'X 未返回接口数据',unexpected_upstream_response:'X 返回了非预期数据',timeout:'检测超时',probe_failed:'网络或代理请求失败',not_checked:'尚未检测',identity_mismatch:'Token 与用户名不一致',no_authenticated_identity:'未识别到登录身份'};
 let accounts = [], busy = false, stopRequested = false, completed = 0;
 function pending(row){return ['unknown','session_valid'].includes(row.health.status);}
 function notice(message,error=false){$('notice').textContent=message;$('notice').className='notice'+(error?' error':'');}
@@ -44,7 +44,7 @@ function render(){
   const tr=document.createElement('tr'), td=document.createElement('td'), link=document.createElement('a');link.textContent='@'+account.username;link.className='handle';link.href='https://x.com/'+encodeURIComponent(account.username);link.target='_blank';link.rel='noopener noreferrer';td.append(link);tr.append(td);
   tr.append(cell(account.source==='previous'?'原有账号':'新导入','muted'));
   const state=cell(''), badge=document.createElement('span');badge.className='badge '+account.health.status;badge.textContent=labels[account.health.status]||'未知状态';state.append(badge);tr.append(state);
-  const reason=(reasons[account.health.reason]||'请重新检测')+(account.health.rateLimitReset && account.health.status==='rate_limited'?'；预计 '+time(account.health.rateLimitReset)+' 恢复':'');
+  const reason=(reasons[account.health.reason]||'请重新检测')+(account.health.status==='error'&&account.health.httpStatus?' · HTTP '+account.health.httpStatus:'')+(account.health.rateLimitReset && account.health.status==='rate_limited'?'；预计 '+time(account.health.rateLimitReset)+' 恢复':'');
   tr.append(cell(reason,'muted'));tr.append(cell(time(account.health.checkedAt),'muted'));
   const action=cell(''), button=document.createElement('button');button.className='small-button';button.textContent='检测';button.disabled=busy;button.setAttribute('aria-label','检测 @'+account.username);button.onclick=()=>single(account);action.append(button);tr.append(action);fragment.append(tr);
  }

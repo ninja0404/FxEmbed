@@ -115,11 +115,9 @@ export async function proxyTwitterRequest(
       const endTime = performance.now();
       console.log(`Fetch completed in ${endTime - startTime}ms`);
 
-      const rawBody = textDecoder.decode(await response.arrayBuffer());
       // A health check must report this account's result, never a successful retry on another.
-      if (fixedAccount) {
-        return new Response(rawBody, { status: response.status, headers: response.headers });
-      }
+      if (fixedAccount) return response;
+      const rawBody = textDecoder.decode(await response.arrayBuffer());
       decodedBody = rawBody.match(/\{[\s\S]+\}/gm)?.[0] || '{}';
 
       const rateLimitRemaining = response.headers.get('x-rate-limit-remaining') ?? 'N/A';
