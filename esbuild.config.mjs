@@ -74,13 +74,14 @@ for (let envVar of envVariables) {
 defines['process.env.RELEASE_NAME'] = JSON.stringify(releaseName);
 
 try {
-  const raw = fs.readFileSync('credentials.enc.json', 'utf-8');
+  const raw =
+    process.env.FXEMBED_ENCRYPTED_CREDENTIALS ?? fs.readFileSync('credentials.enc.json', 'utf-8');
   let enc;
   try {
     enc = JSON.parse(raw);
   } catch (parseErr) {
     const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-    throw new Error(`credentials.enc.json: invalid JSON (${msg})`);
+    throw new Error(`Encrypted credentials: invalid JSON (${msg})`);
   }
   if (
     enc == null ||
@@ -92,7 +93,7 @@ try {
     enc.iv.length === 0
   ) {
     throw new Error(
-      'credentials.enc.json: expected object with non-empty string ciphertext and iv'
+      'Encrypted credentials: expected object with non-empty string ciphertext and iv'
     );
   }
   defines['process.env.ENCRYPTED_CREDENTIALS'] = JSON.stringify(enc.ciphertext);
@@ -100,7 +101,7 @@ try {
 } catch (err) {
   if (err && typeof err === 'object' && err.code === 'ENOENT') {
     console.warn(
-      'No credentials.enc.json found; encrypted credential bundle will be empty (local: npm run credentials:encrypt, CI: fetch from R2 before build).'
+      'No encrypted credentials found; credential bundle will be empty (local: npm run credentials:encrypt, CI: set FXEMBED_ENCRYPTED_CREDENTIALS or fetch from R2 before build).'
     );
     defines['process.env.ENCRYPTED_CREDENTIALS'] = JSON.stringify('');
     defines['process.env.CREDENTIALS_IV'] = JSON.stringify('');

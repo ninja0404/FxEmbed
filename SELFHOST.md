@@ -14,12 +14,15 @@ Modify the source, run appropriate local checks, then push to `main`. Inspect th
 - Build command: `cp .env.selfhost .env && npm run build`
 - Deploy command: `npm run deploy`
 - Build variable: `NODE_VERSION=24`
+- Build secret: `FXEMBED_ENCRYPTED_CREDENTIALS`, the JSON contents of `credentials.enc.json`
 - Preview builds: disabled
 - Deployment token: `fxembed-workers-builds`, managed by Cloudflare
 
 The `x-powered-by` response header contains the build commit. Use it to verify that the live Worker serves the expected Git revision.
 
 `.env.selfhost` contains public configuration only. Keep account cookies, credential encryption keys, and API tokens out of Git. Configure sensitive build values through Cloudflare Build variables and secrets; runtime `CREDENTIAL_KEY` belongs in Worker Secrets. Follow the upstream credential encryption guide when adding X accounts.
+
+The build reads encrypted credentials from `FXEMBED_ENCRYPTED_CREDENTIALS` when set, otherwise from the local `credentials.enc.json` file. Configure the matching `CREDENTIAL_KEY` runtime secret before deploying. An invalid or empty build secret fails the build instead of publishing a guest-only bundle.
 
 The Worker uses `workers.dev` and Cloudflare Workers Logs. No Analytics Engine binding is required.
 
