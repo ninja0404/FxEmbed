@@ -2,9 +2,11 @@
 
 This fork deploys the official FxEmbed Worker to the Cloudflare account configured in `wrangler.toml`.
 
-Current deployment uses the Wrangler CLI. Git-triggered Workers Builds is not connected. The live instance is https://fxembed-selfhost.dengkang807.workers.dev .
+Git-triggered Cloudflare Workers Builds is connected to this fork. Pushes and merges to `main` automatically build and publish `fxembed-selfhost`. The live instance is https://fxembed-selfhost.dengkang807.workers.dev .
 
-## Optional Workers Builds
+Modify the source, run appropriate local checks, then push to `main`. Inspect the build result in Cloudflare Worker → Deployments. A commit only counts as released after its build and deployment succeed.
+
+## Workers Builds
 
 - Worker name: `fxembed-selfhost`
 - Branch: `main`
@@ -13,6 +15,9 @@ Current deployment uses the Wrangler CLI. Git-triggered Workers Builds is not co
 - Deploy command: `npm run deploy`
 - Build variable: `NODE_VERSION=24`
 - Preview builds: disabled
+- Deployment token: `fxembed-workers-builds`, managed by Cloudflare
+
+The `x-powered-by` response header contains the build commit. Use it to verify that the live Worker serves the expected Git revision.
 
 `.env.selfhost` contains public configuration only. Keep account cookies, credential encryption keys, and API tokens out of Git. Configure sensitive build values through Cloudflare Build variables and secrets; runtime `CREDENTIAL_KEY` belongs in Worker Secrets. Follow the upstream credential encryption guide when adding X accounts.
 
