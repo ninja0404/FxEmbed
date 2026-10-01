@@ -78,6 +78,46 @@ describe('account admin access and persistence', () => {
   it('fails closed without the admin secret or state storage', async () => {
     expect((await app.request(origin + '/admin/api/accounts', {}, {})).status).toBe(503);
   });
+  it('preserves browser form origins on login and logout pages', async () => {
+    const loginPage = await app.request(origin + '/admin/login', {}, env);
+    expect(loginPage.headers.get('referrer-policy')).toBe('same-origin');
+    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
+    const dashboard = await app.request(
+      origin + '/admin/accounts',
+      { headers: { Cookie: cookie } },
+      env
+    );
+    expect(dashboard.headers.get('referrer-policy')).toBe('same-origin');
+    const logout = await app.request(
+      origin + '/admin/logout',
+      { method: 'POST', headers: { Cookie: cookie, Origin: origin } },
+      env
+    );
+    expect(logout.status).toBe(303);
+    expect(logout.headers.get('location')).toBe('/admin/login');
+    expect(logout.headers.get('set-cookie')).toContain('Max-Age=0');
+  });
+  it('rejects login and logout when the browser origin is null or absent', async () => {
+    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
+    for (const browserOrigin of [undefined, 'null']) {
+      const headers: Record<string, string> = {
+        'Cookie': cookie,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      };
+      if (browserOrigin !== undefined) headers.Origin = browserOrigin;
+      for (const path of ['/admin/login', '/admin/logout']) {
+        expect(
+          (
+            await app.request(
+              origin + path,
+              { method: 'POST', headers, body: 'token=test-admin-secret' },
+              env
+            )
+          ).status
+        ).toBe(403);
+      }
+    }
+  });
   it('rejects wrong tokens and cross-origin login or check requests', async () => {
     expect(
       (

@@ -28,7 +28,8 @@ accountAdmin.use('*', async (c, next) => {
     `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`
   );
   c.header('X-Content-Type-Options', 'nosniff');
-  c.header('Referrer-Policy', 'no-referrer');
+  // Native form POSTs need a non-null Origin for the CSRF check.
+  c.header('Referrer-Policy', 'same-origin');
   c.header('X-Robots-Tag', 'noindex, nofollow');
   c.set('pageNonce', nonce);
   if (!c.env?.ACCOUNT_ADMIN_TOKEN || !c.env?.ACCOUNT_HEALTH) {
