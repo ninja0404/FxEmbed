@@ -10,6 +10,14 @@ export type TwitterCredentials = {
   authToken: string;
   csrfToken: string;
   username: string;
+  source?: 'previous' | 'import';
+  bootstrapHealth?: {
+    status: string;
+    reason: string;
+    stage: 'session';
+    checkedAt: string;
+    httpStatus?: number;
+  };
 };
 
 /**

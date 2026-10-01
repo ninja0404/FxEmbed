@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import * as esbuild from 'esbuild';
 
 import fs from 'fs';
+import { readEncryptedCredentials } from './tools/read-encrypted-credentials.mjs';
 
 config();
 
@@ -74,8 +75,7 @@ for (let envVar of envVariables) {
 defines['process.env.RELEASE_NAME'] = JSON.stringify(releaseName);
 
 try {
-  const raw =
-    process.env.FXEMBED_ENCRYPTED_CREDENTIALS ?? fs.readFileSync('credentials.enc.json', 'utf-8');
+  const raw = readEncryptedCredentials();
   let enc;
   try {
     enc = JSON.parse(raw);

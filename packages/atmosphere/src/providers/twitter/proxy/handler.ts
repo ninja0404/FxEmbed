@@ -11,7 +11,7 @@ import {
   twitterResponseLooksEmpty
 } from './errors.js';
 import { sendDiscordAlert } from './discord.js';
-import type { ProxyEnv } from '../../../types/proxy-credentials.js';
+import type { ProxyEnv, TwitterCredentials } from '../../../types/proxy-credentials.js';
 
 const redactUsername = false;
 const maxAttempts = 9;
@@ -32,7 +32,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * @param env - Environment/configuration values used by the proxy (for example webhook and feature flags)
  * @returns The response returned to the caller reflecting the proxied api.x.com response (status, headers, and possibly transformed body) or an error response when retries are exhausted
  */
-export async function proxyTwitterRequest(request: Request, env: ProxyEnv): Promise<Response> {
+export async function proxyTwitterRequest(
+  request: Request,
+  env: ProxyEnv,
+  fixedAccount?: TwitterCredentials
+): Promise<Response> {
   const url = new URL(request.url);
   const apiUrl = `https://api.x.com${url.pathname}${url.search}`;
   const requestPath = url.pathname.split('?')[0];
@@ -61,12 +65,14 @@ export async function proxyTwitterRequest(request: Request, env: ProxyEnv): Prom
 
   do {
     errors = false;
-    const { authToken, csrfToken, username } = getTwitterProxyRuntime().getRandomTwitterAccount();
+    const { authToken, csrfToken, username } =
+      fixedAccount ?? getTwitterProxyRuntime().getRandomTwitterAccount();
     const graphql = apiUrl.includes('graphql');
     const authValid = typeof authToken === 'string' && authToken.trim().length > 0;
     const csrfValid = !graphql || (typeof csrfToken === 'string' && csrfToken.trim().length > 0);
 
     if (!authValid || !csrfValid) {
+      if (fixedAccount) return jsonError('Incomplete account credentials', 400);
       console.warn(
         `Skipping malformed Twitter credential (${redactUsername ? '[REDACTED]' : username}): ${
           !authValid ? 'authToken missing or empty' : 'csrfToken missing or empty for graphql'
@@ -110,6 +116,10 @@ export async function proxyTwitterRequest(request: Request, env: ProxyEnv): Prom
       console.log(`Fetch completed in ${endTime - startTime}ms`);
 
       const rawBody = textDecoder.decode(await response.arrayBuffer());
+      // A health check must report this account's result, never a successful retry on another.
+      if (fixedAccount) {
+        return new Response(rawBody, { status: response.status, headers: response.headers });
+      }
       decodedBody = rawBody.match(/\{[\s\S]+\}/gm)?.[0] || '{}';
 
       const rateLimitRemaining = response.headers.get('x-rate-limit-remaining') ?? 'N/A';

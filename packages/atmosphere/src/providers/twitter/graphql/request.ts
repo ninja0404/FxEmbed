@@ -22,12 +22,7 @@ interface GraphQLRequest {
   headers?: Record<string, string>;
 }
 
-export const graphqlRequest = async (
-  host: TwitterBuildHost,
-  request: GraphQLRequest
-): Promise<unknown> => {
-  const { query, validator, variables, headers: requestHeaders } = request;
-  console.log(`📤 ${query.queryName} (${JSON.stringify(variables)})`);
+export function buildGraphQLUrl(query: GraphQLQuery, variables: Record<string, unknown>): string {
   const allVariables = { ...query.variables, ...(variables ?? {}) };
   const { apiRoot } = getTwitterProviderEnv();
 
@@ -40,6 +35,16 @@ export const graphqlRequest = async (
   if (query.fieldToggles) {
     url += `&fieldToggles=${encodeURIComponent(JSON.stringify(query.fieldToggles))}`;
   }
+  return url;
+}
+
+export const graphqlRequest = async (
+  host: TwitterBuildHost,
+  request: GraphQLRequest
+): Promise<unknown> => {
+  const { query, validator, variables, headers: requestHeaders } = request;
+  console.log(`📤 ${query.queryName} (${JSON.stringify(variables)})`);
+  const url = buildGraphQLUrl(query, variables);
   return twitterFetch(host, {
     url,
     method: 'GET',

@@ -12,3 +12,7 @@ head_sampling_rate = 1
 
 [build]
 command = "npm run build"
+
+[[kv_namespaces]]
+binding = "ACCOUNT_HEALTH"
+id = "05123ad518bb45e4a9ed581c8add50b0"

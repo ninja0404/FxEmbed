@@ -21,6 +21,7 @@ import {
   setTwitterProxyRuntime
 } from '@fxembed/atmosphere/providers/twitter-runtime';
 import * as proxyCreds from './providers/twitter/proxy/credentials';
+import { accountAdmin } from './realms/account-admin/router';
 
 setBlueskyProviderEnv({
   apiRoot: Constants.BLUESKY_API_ROOT,
@@ -109,6 +110,8 @@ export const app = new Hono<{
     /** Optional: tests use a Fetcher mock; production uses in-process proxy + CREDENTIAL_KEY. */
     TwitterProxy?: Fetcher;
     CREDENTIAL_KEY?: string;
+    ACCOUNT_ADMIN_TOKEN?: string;
+    ACCOUNT_HEALTH?: KVNamespace;
     EXCEPTION_DISCORD_WEBHOOK?: string;
     AnalyticsEngine: AnalyticsEngineDataset;
   };
@@ -121,6 +124,7 @@ export const app = new Hono<{
     } catch (_e) {
       return '/error';
     }
+    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return url.pathname;
     const baseHostName = url.hostname.split('.').slice(-2).join('.');
     let realm = 'twitter';
     /* Override if in API_HOST_LIST. Note that we have to check full hostname for this. */
@@ -168,6 +172,9 @@ export const app = new Hono<{
     }
   }
 });
+
+// Admin sessions and credential probes bypass public caches, request logging, and Sentry capture.
+app.route('/admin', accountAdmin);
 
 if (process.env.SENTRY_DSN) {
   app.use(

@@ -80,12 +80,17 @@ export async function initCredentials(credentialKey: string | undefined): Promis
 }
 
 export function getRandomTwitterAccount(): TwitterCredentials {
-  const accounts = credentialStore?.twitter?.accounts;
+  const accounts = getTwitterAccounts().filter(account => account.authToken && account.csrfToken);
   if (!accounts?.length) {
     throw new Error('Twitter credentials not initialized or empty');
   }
   const randomIndex = Math.floor(Math.random() * accounts.length);
   return accounts[randomIndex];
+}
+
+/** Server-side access only; admin routes return a separate sanitized status projection. */
+export function getTwitterAccounts(): TwitterCredentials[] {
+  return credentialStore?.twitter?.accounts ?? [];
 }
 
 export function hasDecryptedCredentials(): boolean {

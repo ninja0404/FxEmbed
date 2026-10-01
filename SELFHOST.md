@@ -24,6 +24,16 @@ The `x-powered-by` response header contains the build commit. Use it to verify t
 
 The build reads encrypted credentials from `FXEMBED_ENCRYPTED_CREDENTIALS` when set, otherwise from the local `credentials.enc.json` file. Configure the matching `CREDENTIAL_KEY` runtime secret before deploying. An invalid or empty build secret fails the build instead of publishing a guest-only bundle.
 
+For account pools larger than Cloudflare Builds' 5 KB per-secret limit, split the encrypted JSON into fragments of at most 4,000 bytes. Store the first fragment in `FXEMBED_ENCRYPTED_CREDENTIALS` and the rest in consecutive secrets `_1`, `_2`, etc. Missing, empty, or incorrectly numbered fragments fail the build. Never store the decryption key in build variables.
+
+## Account status page
+
+Open `/admin/accounts` and enter the `ACCOUNT_ADMIN_TOKEN` runtime secret. Sessions use signed, Secure, HttpOnly cookies and expire after eight hours. The page supports username/status filters, individual checks, and a full-pool check with two concurrent requests. Credentials are never returned to the browser.
+
+Each check pins the requested account and makes one authenticated X search request, without retrying on a different account. The page distinguishes a verified login session from a verified query, expired authentication, account restrictions, rate limits, and upstream errors. Results and check times are stored in the `ACCOUNT_HEALTH` KV binding and survive deployments. Results describe the most recent check, not a guarantee of future availability.
+
+The admin routes bypass public caching, request logging, and Sentry request capture. This page reports account health; the existing query proxy retains its account rotation behavior.
+
 The Worker uses `workers.dev` and Cloudflare Workers Logs. No Analytics Engine binding is required.
 
 ## CLI deployment and logs
