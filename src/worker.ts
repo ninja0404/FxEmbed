@@ -173,7 +173,7 @@ export const app = new Hono<{
   }
 });
 
-// Admin sessions and credential probes bypass public caches, request logging, and Sentry capture.
+// Admin credential probes bypass public caches, request logging, and Sentry capture.
 app.route('/admin', accountAdmin);
 
 if (process.env.SENTRY_DSN) {

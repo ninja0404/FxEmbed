@@ -26,11 +26,14 @@ The build reads encrypted credentials from `FXEMBED_ENCRYPTED_CREDENTIALS` when 
 
 For account pools larger than Cloudflare Builds' 5 KB per-secret limit, split the encrypted JSON into fragments of at most 4,000 bytes. Store the first fragment in `FXEMBED_ENCRYPTED_CREDENTIALS` and the rest in consecutive secrets `_1`, `_2`, etc. Missing, empty, or incorrectly numbered fragments fail the build. Never store the decryption key in build variables.
 
-## Account status page
+## Account status API
 
-Open `/admin/accounts` and enter the `ACCOUNT_ADMIN_TOKEN` runtime secret. Sessions use signed, Secure, HttpOnly cookies and expire after eight hours. The page supports username/status filters, individual checks, and a full-pool check with two concurrent requests. Credentials are never returned to the browser.
+The account dashboard lives in solana-monitor (X 账号 → 爬虫账号池). This Worker only exposes a server-to-server JSON API authenticated with `Authorization: Bearer <ACCOUNT_ADMIN_TOKEN>`; there is no browser login page.
 
-Each check pins the requested account and makes one authenticated X search request, without retrying on a different account. The page distinguishes a verified login session from a verified query, expired authentication, account restrictions, rate limits, and upstream errors. Results and check times are stored in the `ACCOUNT_HEALTH` KV binding and survive deployments. Results describe the most recent check, not a guarantee of future availability.
+- `GET /admin/api/accounts`: account usernames and their latest saved health result. Credentials are never returned.
+- `POST /admin/api/accounts/<username>/check`: run and save a health check for one account.
+
+Each check pins the requested account and makes one authenticated X search request, without retrying on a different account. Results distinguish a verified login session from a verified query, expired authentication, account restrictions, rate limits, and upstream errors. Results and check times are stored in the `ACCOUNT_HEALTH` KV binding and survive deployments. Results describe the most recent check, not a guarantee of future availability.
 
 The admin routes bypass public caching, request logging, and Sentry request capture. This page reports account health; the existing query proxy retains its account rotation behavior.
 

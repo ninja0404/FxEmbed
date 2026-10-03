@@ -49,17 +49,7 @@ const env = {
     }
   } as unknown as KVNamespace
 };
-async function login() {
-  return app.request(
-    origin + '/admin/login',
-    {
-      method: 'POST',
-      headers: { 'Origin': origin, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'token=test-admin-secret'
-    },
-    env
-  );
-}
+const auth = { Authorization: 'Bearer test-admin-secret' };
 
 beforeEach(() => {
   records.clear();
@@ -67,84 +57,17 @@ beforeEach(() => {
 });
 
 describe('account admin access and persistence', () => {
-  it('denies anonymous API access and redirects the page to login', async () => {
-    const api = await app.request(origin + '/admin/api/accounts', {}, env);
-    expect(api.status).toBe(401);
-    expect(await api.text()).not.toContain('test_account');
-    expect(api.headers.get('cache-control')).toContain('no-store');
-    const page = await app.request(origin + '/admin/accounts', {}, env);
-    expect(page.headers.get('location')).toBe('/admin/login');
-  });
-  it('fails closed without the admin secret or state storage', async () => {
-    expect((await app.request(origin + '/admin/api/accounts', {}, {})).status).toBe(503);
-  });
-  it('preserves browser form origins on login and logout pages', async () => {
-    const loginPage = await app.request(origin + '/admin/login', {}, env);
-    expect(loginPage.headers.get('referrer-policy')).toBe('same-origin');
-    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
-    const dashboard = await app.request(
-      origin + '/admin/accounts',
-      { headers: { Cookie: cookie } },
-      env
-    );
-    expect(dashboard.headers.get('referrer-policy')).toBe('same-origin');
-    const logout = await app.request(
-      origin + '/admin/logout',
-      { method: 'POST', headers: { Cookie: cookie, Origin: origin } },
-      env
-    );
-    expect(logout.status).toBe(303);
-    expect(logout.headers.get('location')).toBe('/admin/login');
-    expect(logout.headers.get('set-cookie')).toContain('Max-Age=0');
-  });
-  it('rejects login and logout when the browser origin is null or absent', async () => {
-    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
-    for (const browserOrigin of [undefined, 'null']) {
-      const headers: Record<string, string> = {
-        'Cookie': cookie,
-        'Content-Type': 'application/x-www-form-urlencoded'
-      };
-      if (browserOrigin !== undefined) headers.Origin = browserOrigin;
-      for (const path of ['/admin/login', '/admin/logout']) {
-        expect(
-          (
-            await app.request(
-              origin + path,
-              { method: 'POST', headers, body: 'token=test-admin-secret' },
-              env
-            )
-          ).status
-        ).toBe(403);
-      }
+  it('denies requests without the bearer token', async () => {
+    for (const headers of [
+      {},
+      { Authorization: 'Bearer wrong' },
+      { Authorization: 'test-admin-secret' }
+    ]) {
+      const api = await app.request(origin + '/admin/api/accounts', { headers }, env);
+      expect(api.status).toBe(401);
+      expect(await api.text()).not.toContain('test_account');
+      expect(api.headers.get('cache-control')).toContain('no-store');
     }
-  });
-  it('rejects wrong tokens and cross-origin login or check requests', async () => {
-    expect(
-      (
-        await app.request(
-          origin + '/admin/login',
-          {
-            method: 'POST',
-            headers: { 'Origin': origin, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'token=wrong'
-          },
-          env
-        )
-      ).status
-    ).toBe(401);
-    expect(
-      (
-        await app.request(
-          origin + '/admin/login',
-          {
-            method: 'POST',
-            headers: { Origin: 'https://evil.test' },
-            body: 'token=test-admin-secret'
-          },
-          env
-        )
-      ).status
-    ).toBe(403);
     expect(
       (
         await app.request(
@@ -153,20 +76,20 @@ describe('account admin access and persistence', () => {
           env
         )
       ).status
-    ).toBe(403);
+    ).toBe(401);
+    expect(records.size).toBe(0);
   });
-  it('issues a secure session and never returns account credentials', async () => {
-    const response = await login();
-    expect(response.status).toBe(303);
-    const cookie = response.headers.get('set-cookie')!;
-    expect(cookie).toContain('HttpOnly');
-    expect(cookie).toContain('Secure');
-    expect(cookie).toContain('SameSite=Strict');
-    const result = await app.request(
-      origin + '/admin/api/accounts',
-      { headers: { Cookie: cookie.split(';')[0] } },
-      env
+  it('fails closed without the admin secret or state storage', async () => {
+    expect((await app.request(origin + '/admin/api/accounts', { headers: auth }, {})).status).toBe(
+      503
     );
+  });
+  it('no longer serves the browser dashboard', async () => {
+    for (const path of ['/admin/accounts', '/admin/login'])
+      expect((await app.request(origin + path, { headers: auth }, env)).status).toBe(404);
+  });
+  it('never returns account credentials', async () => {
+    const result = await app.request(origin + '/admin/api/accounts', { headers: auth }, env);
     const text = await result.text();
     expect(result.status).toBe(200);
     expect(text).toContain('test_account');
@@ -179,33 +102,15 @@ describe('account admin access and persistence', () => {
     ])
       expect(text).not.toContain(secret);
   });
-  it('rejects expired or tampered sessions', async () => {
-    const response = await login();
-    const cookie = response.headers.get('set-cookie')!.split(';')[0];
-    for (const value of [
-      cookie.replace(/=\d+\./, '=1.'),
-      cookie.slice(0, -1) + (cookie.endsWith('0') ? '1' : '0')
-    ]) {
-      expect(
-        (await app.request(origin + '/admin/api/accounts', { headers: { Cookie: value } }, env))
-          .status
-      ).toBe(401);
-    }
-  });
   it('persists a single-account check and reloads its saved result', async () => {
-    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
     const check = await app.request(
       origin + '/admin/api/accounts/test_account/check',
-      { method: 'POST', headers: { Cookie: cookie, Origin: origin } },
+      { method: 'POST', headers: auth },
       env
     );
     expect(check.status).toBe(200);
     expect(records.size).toBe(1);
-    const list = await app.request(
-      origin + '/admin/api/accounts',
-      { headers: { Cookie: cookie } },
-      env
-    );
+    const list = await app.request(origin + '/admin/api/accounts', { headers: auth }, env);
     expect(
       ((await list.json()) as { accounts: { health: { status: string } }[] }).accounts[0].health
         .status
@@ -214,20 +119,19 @@ describe('account admin access and persistence', () => {
       (
         await app.request(
           origin + '/admin/api/accounts/missing/check',
-          { method: 'POST', headers: { Cookie: cookie, Origin: origin } },
+          { method: 'POST', headers: auth },
           env
         )
       ).status
     ).toBe(404);
   });
   it('reports failed persistence instead of claiming the check was saved', async () => {
-    const cookie = (await login()).headers.get('set-cookie')!.split(';')[0];
     failWrite = true;
     expect(
       (
         await app.request(
           origin + '/admin/api/accounts/test_account/check',
-          { method: 'POST', headers: { Cookie: cookie, Origin: origin } },
+          { method: 'POST', headers: auth },
           env
         )
       ).status
