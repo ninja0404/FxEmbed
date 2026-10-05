@@ -9,7 +9,6 @@ import {
   ProfileWithRepliesTimelineQuery,
   UserArticlesTweetsQuery,
   UserMediaQuery,
-  UserTweetsAndRepliesQuery,
   UserTweetsQuery
 } from './graphql/queries.js';
 import { graphQLOrchestrator } from './graphql/orchestrator.js';
@@ -70,6 +69,7 @@ export const profileStatusesAPI = async (
       key: 'tweets',
       required: true,
       headers: buildLanguageHeaders(language),
+      // UserTweetsAndReplies is gone: X answers it with an empty 404 for any queryId.
       methods: withReplies
         ? [
             {
@@ -77,12 +77,6 @@ export const profileStatusesAPI = async (
               query: ProfileWithRepliesTimelineQuery,
               weight: 10,
               validator: validateProfileWithRepliesTimelineResponse
-            },
-            {
-              name: 'UserTweetsAndReplies',
-              query: UserTweetsAndRepliesQuery,
-              weight: 1,
-              validator: validateUserTweetsTimeline
             }
           ]
         : [

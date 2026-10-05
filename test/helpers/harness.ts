@@ -174,8 +174,13 @@ export default {
               })
             );
           }
-        case 'ProfileTimeline': {
+        case 'ProfileTimeline':
+        case 'ProfileWithRepliesTimeline': {
           const restId = variables.rest_id as string;
+          const timelineKey =
+            apiMethod === 'ProfileTimeline'
+              ? 'profile_timeline_v2'
+              : 'profile_with_replies_timeline_v2';
           try {
             const tweetsModule = await import(`../mocks/UserTweets/${restId}.json`);
             const tweetsMock = (
@@ -192,7 +197,7 @@ export default {
                   rest_id: restId,
                   result: {
                     __typename: 'User',
-                    profile_timeline_v2: {
+                    [timelineKey]: {
                       id: 'mock-profile-timeline',
                       timeline: inner ?? { instructions: [] }
                     }
@@ -202,7 +207,7 @@ export default {
             };
             return new Response(JSON.stringify(wrapped));
           } catch (error) {
-            console.error('Error loading ProfileTimeline mock:', error);
+            console.error(`Error loading ${apiMethod} mock:`, error);
             return new Response(
               JSON.stringify({
                 data: {
@@ -210,7 +215,7 @@ export default {
                     rest_id: restId,
                     result: {
                       __typename: 'User',
-                      profile_timeline_v2: {
+                      [timelineKey]: {
                         timeline: { instructions: [] }
                       }
                     }

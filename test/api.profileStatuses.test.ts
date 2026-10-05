@@ -1,4 +1,4 @@
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import type { APITwitterStatus } from '../src/realms/api/schemas';
 import { APISearchResults } from '../src/types/types';
 import { app } from '../src/worker';
@@ -126,4 +126,35 @@ test('API profile statuses returns 200 with since=0', async () => {
   const response = (await result.json()) as APISearchResults;
   expect(response.code).toEqual(200);
   expect(response.results.length).toBeGreaterThan(0);
+});
+
+test('API profile statuses with_replies=1 makes a single ProfileWithRepliesTimeline request', async () => {
+  // Top of the weighted range: any lower-weight timeline method would be picked first.
+  const random = vi.spyOn(Math, 'random').mockReturnValue(0.999);
+  const operations: string[] = [];
+  const env = {
+    ...harness,
+    TwitterProxy: {
+      fetch: (request: string) => {
+        operations.push(new URL(request).pathname.split('/').pop() ?? '');
+        return harness.TwitterProxy.fetch(request);
+      }
+    }
+  };
+  try {
+    const result = await app.request(
+      new Request('https://api.fxtwitter.com/2/profile/id:783214/statuses?with_replies=1', {
+        method: 'GET',
+        headers: botHeaders
+      }),
+      undefined,
+      env
+    );
+    expect(result.status).toEqual(200);
+    const response = (await result.json()) as APISearchResults;
+    expect(response.results.length).toBeGreaterThan(0);
+    expect(operations).toEqual(['ProfileWithRepliesTimeline']);
+  } finally {
+    random.mockRestore();
+  }
 });

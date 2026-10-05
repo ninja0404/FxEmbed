@@ -546,20 +546,6 @@ export const ProfileWithRepliesTimelineQuery: GraphQLQuery = {
   featureKeys: iOSTimelineFeatureKeys
 };
 
-export const UserTweetsAndRepliesQuery: GraphQLQuery = {
-  httpMethod: 'GET',
-  queryId: 'EJTxTKSH-byy7X46AhtKeA',
-  queryName: 'UserTweetsAndReplies',
-  requiresAccount: true,
-  variables: {
-    includePromotedContent: false,
-    withCommunity: true,
-    withVoice: true,
-    cursor: null
-  },
-  featureKeys: rwebTweetFeatureKeys
-};
-
 export const FollowersQuery: GraphQLQuery = {
   httpMethod: 'GET',
   queryId: '-FpGYzBsUxUOecYYfso0yA',
