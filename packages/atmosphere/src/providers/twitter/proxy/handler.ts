@@ -38,8 +38,12 @@ export async function proxyTwitterRequest(
   fixedAccount?: TwitterCredentials
 ): Promise<Response> {
   const url = new URL(request.url);
-  const apiUrl = `https://api.x.com${url.pathname}${url.search}`;
-  const requestPath = url.pathname.split('?')[0];
+  const signed = needsTransactionId(request.url);
+  // The web search origin avoids api.x.com's edge rejection of Worker search traffic.
+  const apiUrl = signed
+    ? `https://x.com/i/api${url.pathname}${url.search}`
+    : `https://api.x.com${url.pathname}${url.search}`;
+  const requestPath = new URL(apiUrl).pathname;
 
   const headers = new Headers(request.headers);
   headers.delete('x-guest-token');
@@ -92,7 +96,7 @@ export async function proxyTwitterRequest(
       headers.delete('Accept-Encoding');
 
       headers.delete('x-client-transaction-id');
-      if (needsTransactionId(apiUrl)) {
+      if (signed) {
         try {
           const transaction = await ClientTransaction.create(attempts > 1);
           const transactionId = await transaction.generateTransactionId(
