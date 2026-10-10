@@ -5,7 +5,12 @@ import icu from 'i18next-icu';
 import { Constants } from '../constants';
 import { handleQuote } from '../helpers/quote';
 import { isTombstone, withLocalizedTombstoneMessage } from '../helpers/tombstone';
-import { formatImageUrl, formatReplyingToAuthorLabel, sanitizeText, truncateWithEllipsis } from '../helpers/utils';
+import {
+  formatImageUrl,
+  formatReplyingToAuthorLabel,
+  sanitizeText,
+  truncateWithEllipsis
+} from '../helpers/utils';
 import { proxyTwitterPostPhotoUrl, shouldProxyTelegramPbsPhotos } from '../helpers/pbsProxy';
 import { Strings } from '../strings';
 import { getSocialProof } from '../helpers/socialproof';

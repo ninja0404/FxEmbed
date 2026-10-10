@@ -77,3 +77,18 @@ test('a pinned malformed GraphQL session fails before any upstream request', asy
   expect(response.status).toBe(400);
   expect(fetchSpy).not.toHaveBeenCalled();
 });
+
+test('a signing failure stops a search probe before sending an unsigned request', async () => {
+  vi.spyOn(ClientTransaction, 'create').mockRejectedValue(new Error('Signing module changed'));
+  const fetchSpy = vi.fn();
+  vi.stubGlobal('fetch', fetchSpy);
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('error');
+  expect(health.reason).toBe('probe_failed');
+  expect(health.httpStatus).toBeUndefined();
+  expect(fetchSpy).not.toHaveBeenCalled();
+});

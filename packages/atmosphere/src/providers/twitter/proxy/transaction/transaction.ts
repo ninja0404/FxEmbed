@@ -184,7 +184,7 @@ export class ClientTransaction {
   /**
    * Logged-out x.com no longer inlines ondemand.s. The same key-byte indices
    * live in the x-web sign chunk (sign.o-*.js), reached from the entry module
-   * via the sentry-filter chunk.
+   * via the transaction plugin (or the older sentry-filter chunk).
    */
   private async indicesFromXWebSign(html: string): Promise<[number, number[]] | null> {
     const entryMatch = html.match(
@@ -197,10 +197,14 @@ export class ClientTransaction {
 
     let signName = entryJs.match(/sign\.o-[A-Za-z0-9_-]+\.js/)?.[0];
     if (!signName) {
+      const plugin = entryJs.match(/assets\/client-transaction-id-plugin-[A-Za-z0-9_-]+\.js/);
       const sentry = entryJs.match(/assets\/sentry-filter-[A-Za-z0-9_-]+\.js/);
-      if (!sentry) return null;
-      const sentryJs = await (await cachedFetch(assetBase + sentry[0])).text();
-      signName = sentryJs.match(/sign\.o-[A-Za-z0-9_-]+\.js/)?.[0];
+      for (const module of [plugin, sentry]) {
+        if (!module) continue;
+        const moduleJs = await (await cachedFetch(assetBase + module[0])).text();
+        signName = moduleJs.match(/sign\.o-[A-Za-z0-9_-]+\.js/)?.[0];
+        if (signName) break;
+      }
     }
     if (!signName) return null;
 

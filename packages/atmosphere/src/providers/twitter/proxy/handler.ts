@@ -99,11 +99,11 @@ export async function proxyTwitterRequest(
             request.method,
             requestPath
           );
-          console.log('Generated transaction ID:', transactionId);
           headers.set('x-client-transaction-id', transactionId);
         } catch (e) {
-          headers.delete('x-client-transaction-id');
-          console.log('Error generating transaction ID:', e);
+          throw new Error('Could not generate required Twitter transaction signature', {
+            cause: e
+          });
         }
       }
 
