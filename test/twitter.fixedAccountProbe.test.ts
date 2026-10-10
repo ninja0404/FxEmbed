@@ -77,3 +77,116 @@ test('a pinned malformed GraphQL session fails before any upstream request', asy
   expect(response.status).toBe(400);
   expect(fetchSpy).not.toHaveBeenCalled();
 });
+
+test('a pinned search signs its web origin path and supplies the pinned session', async () => {
+  const sign = vi.fn(async () => 'fixture-signature');
+  vi.spyOn(ClientTransaction, 'create').mockResolvedValue({
+    generateTransactionId: sign
+  } as unknown as ClientTransaction);
+  const fetchSpy = vi.fn(
+    async (_request: Request) =>
+      new Response(
+        JSON.stringify({
+          data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } }
+        })
+      )
+  );
+  vi.stubGlobal('fetch', fetchSpy);
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('available');
+  const request = fetchSpy.mock.calls[0][0];
+  const url = new URL(request.url);
+  expect(url.origin).toBe('https://x.com');
+  expect(url.pathname).toMatch(/^\/i\/api\/graphql\/[^/]+\/SearchTimeline$/);
+  expect(sign).toHaveBeenCalledWith('GET', url.pathname);
+  expect(request.headers.get('x-client-transaction-id')).toBe('fixture-signature');
+  expect(request.headers.get('cookie')).toContain('auth_token=fixture-token');
+  expect(request.headers.get('x-csrf-token')).toBe('fixture-csrf');
+});
+
+test('a Cloudflare edge rejection is not an account rate-limit verdict', async () => {
+  vi.spyOn(ClientTransaction, 'create').mockResolvedValue({
+    generateTransactionId: async () => 'fixture'
+  } as unknown as ClientTransaction);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response('error code: 1015\n', {
+          status: 429,
+          headers: { 'server': 'cloudflare', 'content-type': 'text/plain' }
+        })
+    )
+  );
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('error');
+  expect(health.reason).toBe('upstream_non_json');
+  expect(health.errorType).toBe('Cloudflare1015');
+  expect(health.httpStatus).toBe(429);
+  expect(health.rateLimitReset).toBeUndefined();
+});
+
+test('an actual X rate-limit response remains an account rate-limit verdict', async () => {
+  vi.spyOn(ClientTransaction, 'create').mockResolvedValue({
+    generateTransactionId: async () => 'fixture'
+  } as unknown as ClientTransaction);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            errors: [{ code: 88, message: 'Rate limit exceeded' }]
+          }),
+          { status: 429 }
+        )
+    )
+  );
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('rate_limited');
+  expect(health.reason).toBe('rate_limit');
+});
+
+test('profile timeline traffic keeps its existing API origin without invoking web signing', async () => {
+  const sign = vi.spyOn(ClientTransaction, 'create');
+  const fetchSpy = vi.fn(async (_request: Request) => new Response('{}'));
+  vi.stubGlobal('fetch', fetchSpy);
+  await proxyTwitterRequest(
+    new Request('https://api.x.com/graphql/fixture/ProfileWithRepliesTimeline'),
+    {},
+    {
+      username: 'fixture',
+      authToken: 'fixture-token',
+      csrfToken: 'fixture-csrf'
+    }
+  );
+  expect(new URL(fetchSpy.mock.calls[0][0].url).origin).toBe('https://api.x.com');
+  expect(sign).not.toHaveBeenCalled();
+});
+
+test('a signing failure stops a search probe before sending an unsigned request', async () => {
+  vi.spyOn(ClientTransaction, 'create').mockRejectedValue(new Error('Signing module changed'));
+  const fetchSpy = vi.fn();
+  vi.stubGlobal('fetch', fetchSpy);
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('error');
+  expect(health.reason).toBe('probe_failed');
+  expect(health.httpStatus).toBeUndefined();
+  expect(fetchSpy).not.toHaveBeenCalled();
+});

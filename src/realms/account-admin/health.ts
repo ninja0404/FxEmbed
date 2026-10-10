@@ -95,6 +95,19 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
     try {
       body = text.trim() ? JSON.parse(text) : {};
     } catch {
+      const edgeError = text.trim().match(/^error code:\s*(\d+)$/i);
+      if (edgeError && response.headers.get('server')?.toLowerCase().includes('cloudflare')) {
+        // This rejection contains no account verdict or account quota information.
+        return {
+          status: 'error',
+          reason: 'upstream_non_json',
+          errorType: `Cloudflare${edgeError[1]}`,
+          checkedAt,
+          stage: 'query',
+          httpStatus,
+          latencyMs: Math.round(performance.now() - started)
+        };
+      }
       const classification = classifyAccountResponse(httpStatus, {});
       return {
         status: classification.status,
