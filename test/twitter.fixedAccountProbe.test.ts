@@ -92,3 +92,30 @@ test('a signing failure stops a search probe before sending an unsigned request'
   expect(health.httpStatus).toBeUndefined();
   expect(fetchSpy).not.toHaveBeenCalled();
 });
+
+test('a successful pinned search probe supplies browser headers and its signature', async () => {
+  vi.spyOn(ClientTransaction, 'create').mockResolvedValue({
+    generateTransactionId: async () => 'fixture-signature'
+  } as unknown as ClientTransaction);
+  const fetchSpy = vi.fn(
+    async (_request: Request) =>
+      new Response(
+        JSON.stringify({
+          data: { search_by_raw_query: { search_timeline: { timeline: { instructions: [] } } } }
+        })
+      )
+  );
+  vi.stubGlobal('fetch', fetchSpy);
+  const health = await checkTwitterAccount({
+    username: 'fixture',
+    authToken: 'fixture-token',
+    csrfToken: 'fixture-csrf'
+  });
+  expect(health.status).toBe('available');
+  const request = fetchSpy.mock.calls[0][0];
+  expect(request.headers.get('User-Agent')).toMatch(/^Mozilla\/5\.0/);
+  expect(request.headers.get('sec-ch-ua')).toContain('Chromium');
+  expect(request.headers.get('x-client-transaction-id')).toBe('fixture-signature');
+  expect(request.headers.get('cookie')).toContain('auth_token=fixture-token');
+  expect(request.headers.get('x-csrf-token')).toBe('fixture-csrf');
+});

@@ -6,6 +6,7 @@ import {
   classifyAPIErrors,
   twitterResponseLooksEmpty
 } from '@fxembed/atmosphere/providers/twitter/proxy/errors';
+import { generateUserAgent } from '@fxembed/atmosphere/helpers/user-agent';
 import { Constants } from '../../constants';
 
 export type AccountStatus =
@@ -70,6 +71,7 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
   const started = performance.now();
   let httpStatus: number | undefined;
   try {
+    const [userAgent, secChUa] = generateUserAgent();
     const url = buildGraphQLUrl(SearchTimelineQuery, {
       rawQuery: 'from:jack',
       product: 'Latest',
@@ -79,6 +81,8 @@ export async function checkTwitterAccount(account: TwitterCredentials): Promise<
       new Request(url, {
         headers: {
           ...Constants.BASE_HEADERS,
+          'User-Agent': userAgent,
+          'sec-ch-ua': secChUa,
           'authorization': Constants.GUEST_BEARER_TOKEN,
           'x-twitter-auth-type': 'OAuth2Session',
           'x-twitter-active-user': 'yes',
